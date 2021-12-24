@@ -17,7 +17,7 @@ while config['epochs'] > count:
     env.reset() # reset environment for each epoch
     while players.alive_players_num > 1: # count the number of players whose money is more than zero.
         state,reward,stop,info = env.reset_for_a_cycle() # reset_for_a_cycle for each cycle
-        while not stop: # "stop" would be True when a round stops. a cycle has four round, which are "preflop"、"flop"、"turn" and "river".
+        while not stop: # when the round is stopped, "stop" will be True. a cycle has four rounds, which are "preflop"、"flop"、"turn" and "river".
             action = players.action(state,reward,info) # a player takes state from environment and makes an action.
             state,reward,stop,info = env.step(state,action) # the environment changes with the action from players.
         print('\n\n')
