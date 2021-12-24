@@ -15,11 +15,11 @@ env = Texas_Holdem_Env(players=players,bb=config['bb']) # create environment
 
 while config['epochs'] > count:
     env.reset() # reset environment for each epoch
-    while players.alive_players_num > 1:
+    while players.alive_players_num > 1: # count the number of players whose money is more than zero
         state,reward,stop,info = env.reset_for_a_cycle() # reset_for_a_cycle for each cycle
-        while not stop:
-            action = players.action(state,reward,info)
-            state,reward,stop,info = env.step(state,action)
+        while not stop: # a round is still running
+            action = players.action(state,reward,info) # player takes state from environment and makes an action
+            state,reward,stop,info = env.step(state,action) # the environment changes with the action from players
         print('\n\n')
     count += 1
 ```
