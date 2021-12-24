@@ -1,4 +1,14 @@
 # no-limit-texas-holdem-env
+## Config.json
+```json
+{
+    "player_number": 6, 
+    "epochs": 2, 
+    "money": 4, 
+    "algos": ["test", "test", "test", "test", "test", "test"], 
+    "bb": 0.5
+}
+```
 ## main.ipynb
 ```python3
 import json
