@@ -7,16 +7,16 @@ from Env import Texas_Holdem_Env
 
 with open('./Config.json','r') as fp:
     config = json.load(fp)
-    
+```
+```python3
 count = 0
-
-players = Players(algos=config['algos'],player_number=config['player_number'],money=config['money'])
-env = Texas_Holdem_Env(players=players,bb=config['bb'])
+players = Players(algos=config['algos'],player_number=config['player_number'],money=config['money']) # create agents
+env = Texas_Holdem_Env(players=players,bb=config['bb']) # create environment
 
 while config['epochs'] > count:
-    env.reset()
+    env.reset() # reset environment for each epoch
     while players.alive_players_num > 1:
-        state,reward,stop,info = env.reset_for_a_cycle()
+        state,reward,stop,info = env.reset_for_a_cycle() # reset_for_a_cycle for each cycle
         while not stop:
             action = players.action(state,reward,info)
             state,reward,stop,info = env.step(state,action)
