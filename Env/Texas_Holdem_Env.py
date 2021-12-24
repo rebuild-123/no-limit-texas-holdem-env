@@ -145,18 +145,23 @@ class Texas_Holdem_Env:
         self.community_cards += self.deck.withdraw_cards(5 - len(self.community_cards))
         self.deal_with_overbet()
         winners_info = self.rank_winners()
+        print('\n---------the_cycle_is_over---------')
         print('community_cards are',str(self.community_cards.sort()).split('\n'))
         for player in self.players: 
             if player.status == 'fold': continue
             cards = str(player.cards.sort()).split("\n")
-            print(f'player_{player.seat} has {cards}')
+            print(f'player_{player.seat}, has {cards}')
         for (type_,rank),winners in winners_info:
             if self.dead_money == 0: break
             for remove,winner in enumerate(winners):
                 info = (self.players[winner].cards + self.community_cards).sort().best_combination()
+                print("\n------------winners'information------------")
+                print(f"the name of player_{winner}'s winning cards combination is {info['name']}")
+                print(f"the rank of player_{winner}'s winning cards combination is {info['rank']}")
+                print("---------winning cards combination---------")
                 print(Cards(info['best_comp']))
-                print(info['name'],info['rank'])
                 winner_bet_in_the_cycle = self.players[winner].bet_in_the_cycle
+                print("------------win the prize from------------")
                 for player in self.players:
                     prize = min(winner_bet_in_the_cycle,player.bet_in_the_cycle)
                     prize = round(prize/(len(winners)-remove),len(decimal_precision)-2)
@@ -167,9 +172,10 @@ class Texas_Holdem_Env:
     
     def show(self,info):
         if info['new_round'] == True and not self.stop:
-            print('\n-----new_round-----')
+            print('\n--------new_round--------')
+            print('-----community_cards-----')
             print(self.community_cards)
-            print('-------------------')
+            print('-------------------------')
         print()
     
     def step(self,state,action):
@@ -177,7 +183,6 @@ class Texas_Holdem_Env:
         self.deal_with_pay_sb_or_bb()
         self.dead_money += action['raise_']
         self.check_raiser_and_min_raise(action)
-        print('the raiser is ',self.raiser)
         self.players_queue = self.shift_players_queue(self.players_queue)
         self.current_player = self.players_queue[0]
         if self.current_player == self.raiser: self.next_round()
