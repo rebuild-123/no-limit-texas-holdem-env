@@ -2,188 +2,168 @@ from gym import Env
 from random import choice
 from utils import Deck, decimal_precision, Cards
 from decimal import Decimal, ROUND_HALF_DOWN
+from Agents import Players
 
 
-class Texas_Holdem_Env(Env):
-    def __init__(self,player_number:int=6,bb:float=0.5):
-        self.player_number = player_number
-        self.observation_space = None
-        self.action_space = None
-        self.reward_range = None
-        self.new_round = False
+class Texas_Holdem_Env:
+    def __init__(self,players:Players,bb:float=0.5):
         self.deck = Deck()
-        self.community_cards = Cards([])
+        self.players = players
+        self.players_queue = list(range(len(self.players)))
         self.bb = Decimal(bb).quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
-        self.bet = 0
-        self.min_raise = bb
         self.dead_money = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
+        self.smallest_bet_in_the_round = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
+        self.min_raise = self.bb
+        self.current_player = len(self.players) - 1
+        self.raiser = len(self.players) - 1
+        self.sb_payer = len(self.players) - 1
         self.round = 0
+        self.pay_sb = False
         self.pay_bb = False
-        self.sb_payer = self.bb_payer = self.raiser = self.current_player = -1
-        self.active_player_in_the_cycle = []
-        self.alive_players = []
+        self.new_round = False
+        self.community_cards = Cards([])
     
+    def give_players_cards(self):
+        num = self.players.alive_players_num*2
+        if len(self.deck) < num: raise ValueError('There is no enough card for alive players!')
+        self.players.take_cards(self.deck.withdraw_cards(num))
+    
+    def reset(self):
+        self.deck = Deck()
+        self.players.reset()
+        self.give_players_cards()
+        self.players_queue = list(range(len(self.players)))
+        self.dead_money = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
+        self.smallest_bet_in_the_round = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
+        self.min_raise = self.bb
+        self.current_player = len(self.players) - 1
+        self.raiser = len(self.players) - 1
+        self.sb_payer = len(self.players) - 1
+        self.round = 0
+        self.pay_sb = False
+        self.pay_bb = False
+        self.new_round = False
+        self.community_cards = Cards([])
+        
     def info(self):
         info = {
-            'raiser': self.raiser,
-            'bb': self.bb,
+            'bb':self.bb,
+            'current_player':self.current_player,
             'round': self.round,
-            'sb_payer': self.sb_payer,
-            'bb_payer': self.bb_payer,
-            'current_player': self.current_player,
-            'min_raise': self.min_raise,
-            'bet': self.bet,
-            'pay_bb': self.pay_bb,
-            'coummunity_cards': self.community_cards,
-            'new_round': self.new_round
+            'smallest_bet_in_the_round':self.smallest_bet_in_the_round,
+            'pay_sb':self.pay_sb,
+            'pay_bb':self.pay_bb,
+            'raiser':self.raiser,
+            'min_raise':self.min_raise,
+            'new_round':self.new_round
         }
         return info
     
-    def register_players(self,players):
-        self.players = players
-    
-    def reset(self):
-        state = None
-        reward = None
-        stop = False
-        self.new_round = False
-        self.deck = Deck()
-        self.community_cards = Cards([])
-        self.bet = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
-        self.min_raise = self.bb
-        self.dead_money = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
-        self.round = 0
-        self.pay_bb = False
-        
-        self.players.reset()
-        self.sb_payer = self.bb_payer = self.raiser = self.current_player = -1
-        self.alive_players = []
-        info = self.info()
-        return state,reward,stop,info
-    
-    def reset_for_a_cycle(self):
-        state = None
-        reward = None
-        stop = False
-        self.new_round = False
-        self.deck = Deck()
-        self.community_cards = Cards([])
-        self.bet = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
-        self.min_raise = self.bb
-        self.dead_money = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
-        self.round = 0
-        self.pay_bb = False
-        
-        self.players.reset_for_a_cycle()
-        self.alive_players = sorted([
-            player.seat for player in self.players if player.money > 0 or player.has_betted != 0
-        ])
-        self.deal_with_sb_and_bb_payer()
-        self.give_players_cards()
-        info = self.info()
-        return state,reward,stop,info
-    
-    def deal_with_sb_and_bb_payer(self):
-        for i in range(1,self.player_number):
-            if (self.sb_payer + i)%self.player_number in self.alive_players:
-                next_sb_payer = (self.sb_payer + i)%self.player_number
-                idx = self.alive_players.index(next_sb_payer)
-                self.alive_players = self.alive_players[idx:] + self.alive_players[:idx]
-                self.current_player = self.sb_payer = self.raiser = self.alive_players[0]
-                self.bb_payer = self.alive_players[1]
+    def shift_players_queue(self,players_queue):
+        for idx,player_seat in enumerate(self.players_queue[1:],1):
+            if player_seat == self.raiser:
                 break
-        else:
-            raise ValueError('The bb payer dosen\'t exist!')
+            if self.players[player_seat].status != 'fold' and self.players[player_seat].money > 0:
+                break
+        return players_queue[idx:] + players_queue[:idx]
     
-    def give_players_cards(self):
-        alive_players_num = self.players.alive_players_num
-        if len(self.deck) < alive_players_num*2:
-            raise ValueError('There is no enough card for alive players!')
-        else:
-            self.players.take_cards(self.deck.withdraw_cards(alive_players_num*2))
+    def shift_to_capable_of_betting(self,players_queue):
+        for idx,player_seat in enumerate(self.players_queue):
+            if self.players[player_seat].status != 'fold' and self.players[player_seat].money > 0:
+                break
+        return players_queue[idx:] + players_queue[:idx]
+        
+    def reset_for_a_cycle(self):
+        self.deck = Deck()
+        self.players.reset_for_a_cycle()
+        self.give_players_cards()
+        idx = (self.players_queue.index(self.sb_payer)+1)%len(self.players)
+        self.players_queue = self.players_queue[idx:] + self.players_queue[:idx]
+        self.players_queue = self.shift_to_capable_of_betting(self.players_queue)
+        self.dead_money = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
+        self.smallest_bet_in_the_round = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
+        self.min_raise = self.bb
+        self.current_player = self.players_queue[0]
+        self.raiser = self.players_queue[0]
+        self.sb_payer = self.players_queue[0]
+        self.round = 0
+        self.pay_sb = False
+        self.pay_bb = False
+        self.new_round = False
+        self.community_cards = Cards([])
+        return None,None,False,self.info() # state,reward,stop,info
+    
+    def deal_with_pay_sb_or_bb(self):
+        self.pay_bb = self.pay_sb
+        self.pay_sb = True
     
     def check_raiser_and_min_raise(self,action):
-        if action['bet'] > self.bet:
+        if action['bet'] > self.smallest_bet_in_the_round:
             self.raiser = self.current_player
-            self.min_raise = max(self.min_raise, action['bet'] - self.bet)
-            self.bet = action['bet']
-        elif action['bet'] <= self.bet:
-            pass
-                
-    def shift_alive_player(self,action):
-        if (action['bet'] == 0 and self.bet != 0) or self.players[self.alive_players[0]].status == 'all_in':
-            self.alive_players.pop(0)
-            start = 0
+            self.min_raise = max(self.min_raise, action['bet'] - self.smallest_bet_in_the_round)
+            self.smallest_bet_in_the_round = action['bet']
         else:
-            start = 1
-        for idx,player in enumerate(self.alive_players[start:],start):
-            if self.players[player].status in ['call','raise_']:
-                self.alive_players = self.alive_players[idx:] + self.alive_players[:idx]
-                break
-        else:
-            pass # one raises and others all in or fold
-    
-    def rank_winners(self):
-        self.community_cards += self.deck.withdraw_cards(5 - len(self.community_cards))
-        ranks = {}
-        for alive,player in enumerate([player.seat for player in self.players if player.status != 'fold']):
-            self.players[player].cards = (self.players[player].cards + self.community_cards).sort()
-            info = self.players[player].cards.best_combination()
-            ranks.setdefault((info['type'],info['rank']),[]).append(player) 
-        ranks = sorted(ranks.items(),key=lambda x:[x[0][0],x[0][1]],reverse=True)
-        return [rank[1] for rank in ranks]
-        
-    def deal_with_over_bet(self):
-        bets = [player.has_betted_in_the_cycle for player in self.players]
-        if bets.count(max(bets)) < 2:
-            idx = bets.index(max(bets))
-            second_idx = bets.index(max(bets[:idx] + bets[idx+1:]))
-            diff = self.players[idx].has_betted_in_the_cycle-self.players[second_idx].has_betted_in_the_cycle
-            self.players[idx].has_betted_in_the_cycle -= diff
-            self.players[idx].has_betted -= diff
-            self.players[idx].money += diff
-            self.dead_money -= diff
-    
-    def give_the_winner_money(self):
-        ranks = self.rank_winners()
-        self.deal_with_over_bet()
-        for winners in ranks:
-            winners = sorted(winners,key=lambda winner: self.players[winner].has_betted_in_the_cycle)
-            if self.dead_money == 0: break
-            for remove,winner in enumerate(winners):
-                winner_has_betted_in_the_cycle = self.players[winner].has_betted_in_the_cycle
-                print(self.players[winner].cards.info['name'],self.players[winner].cards.info['rank'])
-                print(Cards(self.players[winner].cards.info['best_comp']))
-                for player in self.players:
-                    get_money = min(winner_has_betted_in_the_cycle,player.has_betted_in_the_cycle)
-                    get_money /= (len(winners)-remove)
-                    player.has_betted_in_the_cycle -= get_money
-                    print(f'player_{winner} win {get_money} from player_{player.seat}')
-                    self.players[winner].money += get_money
-                    self.dead_money -= get_money
-        for player in self.players:
-            player.has_betted = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
-        
+            pass # do nothing
     
     def next_round(self):
         self.new_round = True
-        num = sum((1 for player in self.players if player.status in ['raise_','call'] and player.money > 0))
+        num = sum((1 for player in self.players if player.status in ['call','raise_'] and player.money > 0))
         if self.round == 3 or num < 2:
             self.stop = True
         else:
-            self.round += 1
-            self.bet = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
-            self.min_raise = self.bb
-            self.community_cards += self.deck.withdraw_cards(3 if self.round == 1 else 1)
             self.players.reset_for_a_round()
-            self.alive_players = []
-            for seat in range(self.sb_payer,self.player_number+self.sb_payer):
-                seat = seat%(self.player_number)
-                if self.players[seat].status == 'call': # because reset_for_a_round, there is no raiser.
-                    self.alive_players.append(seat)
-            self.players[self.alive_players[0]].status = 'raise_'
-            self.raiser = self.alive_players[0]
-            self.current_player = self.alive_players[0]
+            self.round += 1
+            idx = self.players_queue.index(self.sb_payer)
+            self.players_queue = self.players_queue[idx:] + self.players_queue[:idx]
+            self.players_queue = self.shift_to_capable_of_betting(self.players_queue)
+            self.smallest_bet_in_the_round = Decimal('0').quantize(Decimal(decimal_precision), rounding=ROUND_HALF_DOWN)
+            self.min_raise = self.bb
+            self.current_player = self.players_queue[0]
+            self.raiser = self.players_queue[0]
+            self.community_cards += self.deck.withdraw_cards(3 if self.round == 1 else 1)
+    
+    def deal_with_overbet(self):
+        bet = [player.bet_in_the_cycle for player in self.players]
+        idx = bet.index(max(bet))
+        second_largest = max(bet[:idx] + bet[idx+1:])
+        diff = max(bet) - second_largest
+        self.players[idx].bet_in_the_cycle -= diff
+        self.players[idx].bet_in_the_round -= diff
+        self.players[idx].money += diff
+        self.dead_money -= diff
+        
+    def rank_winners(self):
+        rank_dic = {}
+        for player in self.players:
+            if player.status != 'fold':
+                info = (player.cards + self.community_cards).sort().best_combination()
+                rank_dic.setdefault((info['type'],info['rank']),[]).append(player.seat)
+        winners_info = sorted(rank_dic.items(),key=lambda x:[-x[0][0],-x[0][1]])
+        return winners_info
+    
+    def give_winner_money(self):
+        self.community_cards += self.deck.withdraw_cards(5 - len(self.community_cards))
+        self.deal_with_overbet()
+        winners_info = self.rank_winners()
+        print('community_cards are',str(self.community_cards.sort()).split('\n'))
+        for player in self.players: 
+            if player.status == 'fold': continue
+            cards = str(player.cards.sort()).split("\n")
+            print(f'player_{player.seat} has {cards}')
+        for (type_,rank),winners in winners_info:
+            if self.dead_money == 0: break
+            for remove,winner in enumerate(winners):
+                info = (self.players[winner].cards + self.community_cards).sort().best_combination()
+                print(Cards(info['best_comp']))
+                print(info['name'],info['rank'])
+                winner_bet_in_the_cycle = self.players[winner].bet_in_the_cycle
+                for player in self.players:
+                    prize = min(winner_bet_in_the_cycle,player.bet_in_the_cycle)
+                    prize = round(prize/(len(winners)-remove),len(decimal_precision)-2)
+                    player.bet_in_the_cycle -= prize
+                    self.dead_money -= prize
+                    self.players[winner].money += prize
+                    print(f'player_{winner} win {prize} from player_{player.seat}')
     
     def show(self,info):
         if info['new_round'] == True and not self.stop:
@@ -194,13 +174,14 @@ class Texas_Holdem_Env(Env):
     
     def step(self,state,action):
         self.stop = self.new_round = False
-        if self.current_player == self.bb_payer: self.pay_bb = True
-        self.check_raiser_and_min_raise(action)
+        self.deal_with_pay_sb_or_bb()
         self.dead_money += action['raise_']
-        self.shift_alive_player(action)
-        self.current_player = self.alive_players[0]
+        self.check_raiser_and_min_raise(action)
+        print('the raiser is ',self.raiser)
+        self.players_queue = self.shift_players_queue(self.players_queue)
+        self.current_player = self.players_queue[0]
         if self.current_player == self.raiser: self.next_round()
-        if self.stop: self.give_the_winner_money()
+        if self.stop: self.give_winner_money()
         info = self.info()
         self.show(info)
         return None,None,self.stop,info

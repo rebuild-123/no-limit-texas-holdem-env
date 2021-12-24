@@ -4,7 +4,7 @@ full_house,flush,straight,straight_from_A_to_five,three_of_a_kind,two_pairs,pair
 class Cards:
     def __init__(self,cards):
         self.cards = cards
-        self.info = {'check':False,'type':None,'rank':None,'name':None}  
+        self.info = {'check':False,'type':None,'rank':None,'name':None,'best_comp':None}  
         
     def withdraw_cards(self,number):
         if len(self.cards) < number: raise ValueError('There is no enough cards!')
