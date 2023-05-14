@@ -1,6 +1,11 @@
 from .Check_Rank import straight_flush,straight_flush_from_A_to_five,four_of_a_kind,\
 full_house,flush,straight,straight_from_A_to_five,three_of_a_kind,two_pairs,pair,highcard
 
+CHECK_LIST = (
+    straight_flush,straight_flush_from_A_to_five,four_of_a_kind,
+    full_house,flush,straight,straight_from_A_to_five,three_of_a_kind,two_pairs,pair,highcard
+)
+
 class Cards:
     def __init__(self,cards):
         self.cards = cards
@@ -19,17 +24,11 @@ class Cards:
     def best_combination(self):
         self.info = {'check':False,'type':None,'rank':None,'name':None,'best_comp':None}  
         if len(self.cards) < 5: raise ValueError('the function needs at least five cards.')
-        if self.info['check'] != True: self.info = straight_flush(self.cards)
-        if self.info['check'] != True: self.info = straight_flush_from_A_to_five(self.cards)
-        if self.info['check'] != True: self.info = four_of_a_kind(self.cards)
-        if self.info['check'] != True: self.info = full_house(self.cards)
-        if self.info['check'] != True: self.info = flush(self.cards)
-        if self.info['check'] != True: self.info = straight(self.cards)
-        if self.info['check'] != True: self.info = straight_from_A_to_five(self.cards)
-        if self.info['check'] != True: self.info = three_of_a_kind(self.cards)
-        if self.info['check'] != True: self.info = two_pairs(self.cards)
-        if self.info['check'] != True: self.info = pair(self.cards)
-        if self.info['check'] != True: self.info = highcard(self.cards)
+        self.info = next(
+            info
+            for checker in CHECK_LIST 
+            if (info := checker(self.cards)) != None and info['check'] == True
+        )
         return self.info
     
     def __len__(self):
